@@ -1,8 +1,8 @@
 # Compiler choice:
 
 # Gcc
-CC    = gcc
-MPICC = mpicc
+CC    = cc
+MPICC = cc
 CFLAGS = -O2 -g -ansi
 
 MLIBS	=   -lm
