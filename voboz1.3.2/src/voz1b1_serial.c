@@ -3,16 +3,16 @@
 int delaunadj (coordT *points, int nvp, int nvpbuf, int nvpall, PARTADJ **adjs);
 int vorvol (coordT *deladjs, coordT *points, pointT *intpoints, int numpoints, realT *vol);
 
-int openfile(char *filename, FILE **f);
-int posread(char *posfile, realT ***p, realT fact);
-int posread_chunk(FILE *f, realT **p, realT fact, int np, int nread);
+long openfile(char *filename, FILE **f);
+long posread(char *posfile, realT ***p, realT fact);
+long posread_chunk(FILE *f, realT **p, realT fact, long np, long nread);
 
 void voz1b1(char *posfile, realT border, realT boxsize,
-	    int numdiv, int b[], char *suffix);
+	    long numdiv, long b[], char *suffix);
 
 int main(int argc, char *argv[]) {
   int exitcode;
-  int i, j, np, np_current, np_tot;
+  long i, j, np, np_current, np_tot;
   realT **r;
   coordT rtemp[3], *parts;
   coordT deladjs[3*MAXVERVER], points[3*MAXVERVER];
@@ -23,14 +23,14 @@ int main(int argc, char *argv[]) {
   realT *vols;
   realT predict, xmin,xmax,ymin,ymax,zmin,zmax;
   int *orig;
-  
+
   int isitinbuf;
   char isitinmain, d;
-  int numdiv, nvp, nvpall, nvpbuf;
+  long numdiv, nvp, nvpall, nvpbuf;
   realT width, width2, totwidth, totwidth2, bf, s, g;
   realT border, boxsize;
   realT c[3];
-  int b[3];
+  long b[3];
   realT totalvol;
 
   if (argc != 9) {

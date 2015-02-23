@@ -1,4 +1,4 @@
-/* 
+/*
    Modified to match the precision of Qhull.
    All the VOBOZ files now include this file,
    and this one includes the necessary Qhull
@@ -20,10 +20,14 @@
 		    in each dim */
 
 /* number of particle to read in per chunk */
-/* 1024**2 */
+/*
+1024**2
 #define N_CHUNK 1048576
+*/
+/* 256**3 */
+#define N_CHUNK 16777216
 
-/* 
+/*
    These are needed for scanning strings correctly.
 */
 

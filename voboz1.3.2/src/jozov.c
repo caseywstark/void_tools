@@ -1,6 +1,6 @@
 /* jozov.c by Mark Neyrinck
     This program uses the tessellation from the voz* programs
-    to produce ZOBOV results (possibly, subject to subsequent 
+    to produce ZOBOV results (possibly, subject to subsequent
     post-processing with zobovpostproc.py)
 */
 
@@ -45,21 +45,23 @@ typedef struct ZoneT {
 
 void findrtop(float *a, int na, int *iord, int nb);
 
-int main(int argc,char **argv) {
-
+int
+main(int argc, char **argv)
+{
   FILE *adj, *vol, *zon, *vod, *txt;
   PARTICLE *p;
   ZONE *z;
   ZONET *zt;
   char *prefix, adjfile[FNL], volfile[FNL], zonefile[FNL], voidfile[FNL], txtfile[FNL];
-  int i, j,k,l, h, h2,hl,n,np, np2, nzones, nhl, nhlcount, nhl2;
+  long i, j, k, l, h, h2, hl;
+  long n, np, np2, nzones, nhl, nhlcount, nhl2;
   int nvoidsreal;
   int *jumper, *jumped, *numinh;
   int *zonenum, *zonelist, *zonelist2;
   int link[NLINKS], link2, nl;
   float lowvol, voltol, borderdens, invborderdens, prob;
 
-  int q,q2;
+  int q, q2;
 
   int za, nin;
   int testpart;
@@ -69,6 +71,9 @@ int main(int argc,char **argv) {
   float maxdens, maxdens_border, mindens, mindens_border;
   float *sorter, maxdenscontrast;
   int *iord;
+
+  /* dummy variable to deal with this library not following its own conventions. */
+  realT d;
 
   if (argc != 5) {
     printf("Wrong number of arguments.\n");
@@ -81,7 +86,7 @@ int main(int argc,char **argv) {
   if (sscanf(argv[1],"%c",&obo) == 0) {
     printf("Bad density threshold.\n");
     exit(0);
-  }  
+  }
   obo = tolower(obo);
   if (obo == 'c'){
     printf("Finding clusters.\n");
@@ -95,12 +100,12 @@ int main(int argc,char **argv) {
   }
   prefix = argv[2];
 
-  sprintf(adjfile,"%s.adj",prefix);
-  sprintf(volfile,"%s.vol",prefix);
+  sprintf(adjfile, "%s.adj", prefix);
+  sprintf(volfile, "%s.vol", prefix);
   if (sscanf(argv[3],"%f",&voltol) == 0) {
     printf("Bad density threshold.\n");
     exit(0);
-  }  
+  }
   if (sscanf(argv[4],"%f",&borderdens) == 0) {
     printf("Bad density threshold.\n");
     exit(0);
@@ -126,37 +131,37 @@ int main(int argc,char **argv) {
     printf("Unable to open %s\n",adjfile);
     exit(0);
   }
-  fread(&np,1, sizeof(int),adj);
-  
+  fread(&np, 1, sizeof(long), adj);
+
   p = (PARTICLE *)malloc(np*sizeof(PARTICLE));
   printf("adj: %d particles\n", np);
   FF;
   /* Adjacencies*/
-  for (i=0;i<np;i++) {
-    fread(&p[i].nadj,1,sizeof(int),adj); 
+  for (i = 0; i < np; i++) {
+    fread(&p[i].nadj, sizeof(int), 1, adj);
     /* The number of adjacencies per particle */
     if (p[i].nadj > 0) {
-      p[i].adj = (int *)malloc(p[i].nadj*sizeof(int));
+      p[i].adj = (int *)malloc(p[i].nadj * sizeof(int));
     }
     p[i].nadj_count = 0;
   }
-  for (i=0;i<np;i++) {
-    fread(&nin,1,sizeof(int),adj);
+  for (i = 0; i < np; i++) {
+    fread(&nin, sizeof(int), 1, adj);
     if (nin > 0)
-      for (k=0;k<nin;k++) {
-	fread(&j,1,sizeof(int),adj);
-	if (j < np) {
-	  /* Set both halves of the pair */
-	  if ((p[i].nadj_count < p[i].nadj) && (p[j].nadj_count < p[j].nadj)){
-	    p[i].adj[p[i].nadj_count] = j;
-	    p[j].adj[p[j].nadj_count] = i;
-	    p[i].nadj_count++; p[j].nadj_count++;
-	  } else{
-	    printf("weird#adj,p %d or %d\t",i,j);
-	  }
-	} else {
-	  printf("adj(%d)=%d>np\n",i,j); FF;
-	}
+      for (k = 0; k < nin; k++) {
+        fread(&j,sizeof(int),1,adj);
+        if (j < np) {
+          /* Set both halves of the pair */
+          if ((p[i].nadj_count < p[i].nadj) && (p[j].nadj_count < p[j].nadj)){
+            p[i].adj[p[i].nadj_count] = j;
+            p[j].adj[p[j].nadj_count] = i;
+            p[i].nadj_count++; p[j].nadj_count++;
+          } else{
+            printf("weird#adj,p %d or %d\t",i,j);
+          }
+        } else {
+          printf("adj(%d)=%d>np\n",i,j); FF;
+        }
       }
   }
   fclose(adj);
@@ -164,11 +169,11 @@ int main(int argc,char **argv) {
 
   /* Check that we got all the pairs */
   adj = fopen(adjfile, "r");
-  fread(&np,1, sizeof(int),adj);
-  for (i=0;i<np;i++) {
-    fread(&nin,1,sizeof(int),adj); /* actually nadj */
+  fread(&np, sizeof(long), 1, adj);
+  for (i = 0; i < np; i++) {
+    fread(&nin, sizeof(int), 1, adj); /* actually nadj */
     if (nin != p[i].nadj) {
-      printf("We didn't get all of %d's adj's; %d != %d.\n",i,nin,p[i].nadj);
+      printf("We didn't get all of %d's adj's; %d != %d.\n", i, nin, p[i].nadj);
       /*exit(0);*/
     }
   }
@@ -180,15 +185,19 @@ int main(int argc,char **argv) {
     printf("Unable to open volume file %s.\n\n",volfile);
     exit(0);
   }
-  fread(&np2,1, sizeof(int),adj);
+  fread(&np2, sizeof(long), 1, adj);
   if (np != np2) {
-    printf("Number of particles doesn't match! %d != %d\n",np,np2);
+    printf("Number of particles doesn't match! %ld != %ld\n", np, np2);
     exit(0);
   }
-  for (i=0;i<np;i++) {
-    fread(&p[i].dens,1,sizeof(float),vol);
+  for (i = 0; i < np; i++) {
+    /* this reads correctly */
+    fread(&d, sizeof(realT), 1, vol);
+    /* and this handles possible conversion */
+    p[i].dens = d;
+
     if ((p[i].dens < 1e-30) || (p[i].dens > 1e30)) {
-      printf("Whacked-out volume found, of particle %d: %g\n",i,p[i].dens);
+      printf("Whacked-out volume found, of particle %d: %g\n", i, p[i].dens);
       p[i].dens = 1.;
     }
     if (obo == 'v'){
@@ -200,7 +209,7 @@ int main(int argc,char **argv) {
   }
   fclose(vol);
 
-  jumped = (int *)malloc(np*sizeof(int));  
+  jumped = (int *)malloc(np*sizeof(int));
   jumper = (int *)malloc(np*sizeof(int));
   numinh = (int *)malloc(np*sizeof(int));
 
@@ -209,15 +218,15 @@ int main(int argc,char **argv) {
     mindens = p[i].dens; jumper[i] = -1;
     for (j=0; j< p[i].nadj; j++) {
       if (p[p[i].adj[j]].dens < mindens) {
-	jumper[i] = p[i].adj[j];
-	mindens = p[jumper[i]].dens;
+        jumper[i] = p[i].adj[j];
+        mindens = p[jumper[i]].dens;
       }
     }
     numinh[i] = 0;
   }
 
   printf("About to jump ...\n"); FF;
-  
+
   /* Jump */
   for (i = 0; i < np; i++) {
     jumped[i] = i;
@@ -226,7 +235,7 @@ int main(int argc,char **argv) {
     numinh[jumped[i]]++;
   }
   printf("Post-jump ...\n"); FF;
-  
+
   nzones = 0;
   for (i = 0; i < np; i++)
     if (numinh[i] > 0) nzones++;
@@ -242,7 +251,7 @@ int main(int argc,char **argv) {
     printf("Unable to allocate zt\n");
     exit(0);
   }
-  
+
   for (h=0;h<nzones;h++) {
     zt[h].nadj = 0;
   }
@@ -261,15 +270,15 @@ int main(int argc,char **argv) {
     } else {
       zonenum[i] = -1;
     }
- 
+
   /* Count border particles */
   for (i = 0; i < np; i++)
     for (j = 0; j < p[i].nadj; j++) {
       testpart = p[i].adj[j];
       if (jumped[i] != jumped[testpart])
-	zt[zonenum[jumped[i]]].nadj++;
+        zt[zonenum[jumped[i]]].nadj++;
     }
-  
+
   for (h=0;h<nzones;h++) {
     zt[h].adj = (int *)malloc(zt[h].nadj*sizeof(int));
     if (zt[h].adj == NULL) {
@@ -290,36 +299,36 @@ int main(int argc,char **argv) {
     for (j = 0; j < p[i].nadj; j++) {
       testpart = p[i].adj[j];
       if (h != zonenum[jumped[testpart]]) {
-	if (p[testpart].dens > p[i].dens) {
-	  /* there could be a weakest link through testpart */
-	  already = 0;
-	  for (za = 0; za < zt[h].nadj; za++)
-	    if (zt[h].adj[za] == zonenum[jumped[testpart]]) {
-	      already = 1;
-	      if (p[testpart].dens < zt[h].slv[za]) {
-		zt[h].slv[za] = p[testpart].dens;
-	      }
-	    }
-	  if (already == 0) {
-	    zt[h].adj[zt[h].nadj] = zonenum[jumped[testpart]];
-	    zt[h].slv[zt[h].nadj] = p[testpart].dens;
-	    zt[h].nadj++;
-	  }
-	} else { /* There could be a weakest link through i */
-	  already = 0;
-	  for (za = 0; za < zt[h].nadj; za++)
-	    if (zt[h].adj[za] == zonenum[jumped[testpart]]) {
-	      already = 1;
-	      if (p[i].dens < zt[h].slv[za]) {
-		zt[h].slv[za] = p[i].dens;
-	      }
-	    }
-	  if (already == 0) {
-	    zt[h].adj[zt[h].nadj] = zonenum[jumped[testpart]];
-	    zt[h].slv[zt[h].nadj] = p[i].dens;
-	    zt[h].nadj++;
-	  }
-	}
+        if (p[testpart].dens > p[i].dens) {
+          /* there could be a weakest link through testpart */
+          already = 0;
+          for (za = 0; za < zt[h].nadj; za++)
+            if (zt[h].adj[za] == zonenum[jumped[testpart]]) {
+              already = 1;
+              if (p[testpart].dens < zt[h].slv[za]) {
+                zt[h].slv[za] = p[testpart].dens;
+              }
+            }
+          if (already == 0) {
+            zt[h].adj[zt[h].nadj] = zonenum[jumped[testpart]];
+            zt[h].slv[zt[h].nadj] = p[testpart].dens;
+            zt[h].nadj++;
+          }
+        } else { /* There could be a weakest link through i */
+          already = 0;
+          for (za = 0; za < zt[h].nadj; za++)
+            if (zt[h].adj[za] == zonenum[jumped[testpart]]) {
+              already = 1;
+              if (p[i].dens < zt[h].slv[za]) {
+                zt[h].slv[za] = p[i].dens;
+              }
+            }
+          if (already == 0) {
+            zt[h].adj[zt[h].nadj] = zonenum[jumped[testpart]];
+            zt[h].slv[zt[h].nadj] = p[i].dens;
+            zt[h].nadj++;
+          }
+        }
       }
     }
   }
@@ -366,15 +375,15 @@ int main(int argc,char **argv) {
   fprintf(zon,"%d %d\n",np,nzones);
   for (i=0; i<np; i++) {
     if (((obo == 'v')&&(p[i].dens > borderdens)) ||
-	((obo == 'c')&&(p[i].dens < invborderdens))) {
-      fprintf(zon, "%d\n",zonenum[jumped[i]]);
+        ((obo == 'c')&&(p[i].dens < invborderdens))) {
+      fprintf(zon, "%d\n", zonenum[jumped[i]]);
     } else { /* Border particle */
       fprintf(zon, "-1\n");
     }
   }
-  
+
   close(zon);
-  
+
   inyet = (char *)malloc(nzones*sizeof(char));
   inyet2 = (char *)malloc(nzones*sizeof(char));
   zonelist = (int *)malloc(nzones*sizeof(int));
@@ -386,7 +395,7 @@ int main(int argc,char **argv) {
     inyet2[h] = 0;
   }
 
-  nhl = 0; 
+  nhl = 0;
 
   maxdens = -BF;
   maxdens_border = -BF;
@@ -426,113 +435,113 @@ int main(int argc,char **argv) {
       /* Find the lowest-volume (highest-density) adjacency */
       lowvol = BF; nl = 0; beaten = 0;
       for (hl = 0; hl < nhl; hl++) {
-	h2 = zonelist[hl];
-	if (inyet[h2] == 1) { /* If it's not already identified as 
-				 an interior zone, with inyet=2 */
-	  interior = 1;
-	  for (za = 0; za < z[h2].nadj; za ++) {
-	    if (inyet[z[h2].adj[za]] == 0) {
-	      interior = 0;
-	      if (z[h2].slv[za] == lowvol) {
-		link[nl] = z[h2].adj[za];
-		nl ++;
-		if (nl == NLINKS) {
-		  printf("Too many links with the same rho_sl!  Increase NLINKS from %d\n",nl);
-		  exit(0);
-		}
-	      }
-	      if (z[h2].slv[za] < lowvol) {
-		lowvol = z[h2].slv[za];
-		link[0] = z[h2].adj[za];
-		nl = 1;
-	      }
-	    }
-	  }
-	  if (interior == 1) inyet[h2] = 2; /* No bordering exter. zones */
-	}
+        h2 = zonelist[hl];
+        if (inyet[h2] == 1) { /* If it's not already identified as
+                                 an interior zone, with inyet=2 */
+          interior = 1;
+          for (za = 0; za < z[h2].nadj; za ++) {
+            if (inyet[z[h2].adj[za]] == 0) {
+              interior = 0;
+              if (z[h2].slv[za] == lowvol) {
+                link[nl] = z[h2].adj[za];
+                nl ++;
+                if (nl == NLINKS) {
+                  printf("Too many links with the same rho_sl!  Increase NLINKS from %d\n",nl);
+                  exit(0);
+                }
+              }
+              if (z[h2].slv[za] < lowvol) {
+                lowvol = z[h2].slv[za];
+                link[0] = z[h2].adj[za];
+                nl = 1;
+              }
+            }
+          }
+          if (interior == 1) inyet[h2] = 2; /* No bordering exter. zones */
+        }
       }
 
       if (nl == 0) {
-	beaten = 1;
-	z[h].leak = maxdens;
-	continue;
+        beaten = 1;
+        z[h].leak = maxdens;
+        continue;
       }
-	
+
       if (lowvol > voltol) {
-	beaten = 1;
-	z[h].leak = lowvol;
-	continue;
+        beaten = 1;
+        z[h].leak = lowvol;
+        continue;
       }
 
       for (l=0; l < nl; l++)
-	if (p[z[link[l]].core].dens < p[z[h].core].dens)
-	  beaten = 1;
+        if (p[z[link[l]].core].dens < p[z[h].core].dens)
+          beaten = 1;
       if (beaten == 1) {
-	z[h].leak = lowvol;
-	continue;
+        z[h].leak = lowvol;
+        continue;
       }
       /* Add everything linked to the link(s) */
       nhl2 = 0;
       for (l=0; l < nl; l++) {
-	if (inyet2[link[l]] == 0) {
-	  zonelist2[nhl2] = link[l];
-	  inyet2[link[l]] = 1;
-	  nhl2 ++;
-	  added = 1;
-	  while ((added == 1) && (beaten == 0)) {
-	    added = 0;
-	    for (hl = 0; (hl < nhl2) && (beaten == 0); hl++) {
-	      h2 = zonelist2[hl];
-	      if (inyet2[h2] == 1) {
-		interior = 1; /* Guilty until proven innocent */
-		for (za = 0; za < z[h2].nadj; za ++) {
-		  link2 = z[h2].adj[za];
-		  if ((inyet[link2]+inyet2[link2]) == 0) {
-		    interior = 0;
-		    if (z[h2].slv[za] <= lowvol) {
-		      if (p[z[link2].core].dens < p[z[h].core].dens) {
-			beaten = 1;
-			break;
-		      }
-		      zonelist2[nhl2] = link2;
-		      inyet2[link2] = 1;
-		      nhl2++;
-		      added = 1;
-		    }
-		  }
-		}
-		if (interior == 1) inyet2[h2] = 2;
-	      }
-	    }
-	  }
-	}
+        if (inyet2[link[l]] == 0) {
+          zonelist2[nhl2] = link[l];
+          inyet2[link[l]] = 1;
+          nhl2 ++;
+          added = 1;
+          while ((added == 1) && (beaten == 0)) {
+            added = 0;
+            for (hl = 0; (hl < nhl2) && (beaten == 0); hl++) {
+              h2 = zonelist2[hl];
+              if (inyet2[h2] == 1) {
+                interior = 1; /* Guilty until proven innocent */
+                for (za = 0; za < z[h2].nadj; za ++) {
+                  link2 = z[h2].adj[za];
+                  if ((inyet[link2]+inyet2[link2]) == 0) {
+                    interior = 0;
+                    if (z[h2].slv[za] <= lowvol) {
+                      if (p[z[link2].core].dens < p[z[h].core].dens) {
+                        beaten = 1;
+                        break;
+                      }
+                      zonelist2[nhl2] = link2;
+                      inyet2[link2] = 1;
+                      nhl2++;
+                      added = 1;
+                    }
+                  }
+                }
+                if (interior == 1) inyet2[h2] = 2;
+              }
+            }
+          }
+        }
       }
       for (hl = 0; hl < nhl2; hl++)
-	inyet2[zonelist2[hl]] = 0;
-      
+        inyet2[zonelist2[hl]] = 0;
+
       /* See if there's a beater */
       if (beaten == 1) {
-	z[h].leak = lowvol;
+        z[h].leak = lowvol;
       } else {
-	fprintf(vod,"%d %f ",nhl2, lowvol/p[z[h].core].dens);
-	for (h2 = 0; h2 < nhl2; h2++) {
-	  zonelist[nhl] = zonelist2[h2];
-	  inyet[zonelist2[h2]] = 1;
-	  nhl++;
-	  z[h].npjoin += z[zonelist2[h2]].np;
-	  fprintf(vod,"%d ",zonelist2[h2]);
-	}
-	fprintf(vod," ");
-	fflush(vod);
+        fprintf(vod,"%d %f ",nhl2, lowvol/p[z[h].core].dens);
+        for (h2 = 0; h2 < nhl2; h2++) {
+          zonelist[nhl] = zonelist2[h2];
+          inyet[zonelist2[h2]] = 1;
+          nhl++;
+          z[h].npjoin += z[zonelist2[h2]].np;
+          fprintf(vod,"%d ",zonelist2[h2]);
+        }
+        fprintf(vod," ");
+        fflush(vod);
       }
       if (nhl/10000 > nhlcount) {
-	nhlcount = nhl/10000;
-	printf(" %d",nhl); FF;
+        nhlcount = nhl/10000;
+        printf(" %d",nhl); FF;
       }
     } while((lowvol < BF) && (beaten == 0));
-    
+
     z[h].denscontrast = z[h].leak/p[z[h].core].dens;
-    
+
     fprintf(vod,"0 %f\n",z[h].denscontrast); /* Mark the end of the line */
 
     /* find biggest denscontrast */
@@ -565,14 +574,14 @@ int main(int argc,char **argv) {
   nvoidsreal = 0;
   for (h=0; h< nzones; h++) {
     if (((obo == 'c')&&(p[z[h].core].dens > borderdens)) ||
-	((obo == 'v')&&(p[z[h].core].dens < invborderdens))) {
+        ((obo == 'v')&&(p[z[h].core].dens < invborderdens))) {
       sorter[h] = (float)z[h].denscontrast;
       nvoidsreal ++;
     } else {
       sorter[h] = 0.;
     }
   }
-    
+
   /* Text output file */
 
   printf("about to sort ...\n");FF;
@@ -595,7 +604,7 @@ int main(int argc,char **argv) {
 
     if (sorter[i] > 0.) {
       fprintf(txt,"%d %d %d %e %e %d %d %e %d %f %6.2e\n",
-	      h+1, i, z[i].core, p[z[i].core].dens, z[i].vol, z[i].np, z[i].nhl, z[i].voljoin, z[i].npjoin, z[i].denscontrast, prob);
+              h+1, i, z[i].core, p[z[i].core].dens, z[i].vol, z[i].np, z[i].nhl, z[i].voljoin, z[i].npjoin, z[i].denscontrast, prob);
     }
 
   } /* h+1 to start from 1, not zero */
