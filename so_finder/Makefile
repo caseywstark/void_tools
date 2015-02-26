@@ -3,8 +3,8 @@ CXX := CC
 CPPFLAGS :=
 CXXFLAGS := -std=c++11 -Wfatal-errors -Wall -Wextra -pedantic -O3 -funroll-loops
 
-SRC = vf.cc
-TARGET = vf.ex
+SRC = so_finder.cc
+TARGET = so_finder.ex
 
 .PHONY: all clean
 
