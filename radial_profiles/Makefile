@@ -7,9 +7,9 @@ CPPFLAGS :=
 LDFLAGS  :=
 ###
 
-APP := void_profiles
+APP := radial_profiles
 OBJS := $(APP).o
-TARGET := $(APP).ex
+TARGET := $(APP).exe
 
 # Targets
 all: $(TARGET)

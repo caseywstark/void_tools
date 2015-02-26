@@ -4,7 +4,7 @@ CPPFLAGS :=
 CXXFLAGS := -std=c++11 -Wfatal-errors -Wall -Wextra -pedantic -O3 -funroll-loops
 
 SRC = so_finder.cc
-TARGET = so_finder.ex
+TARGET = so_finder.exe
 
 .PHONY: all clean
 

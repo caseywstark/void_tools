@@ -51,7 +51,16 @@ read_centers(const std::string path)
 
         // now read for centers and push onto return vec.
         while (std::getline(centers_file, line)) {
-            std::vector<std::string> t = split_string(line, ' ');
+            std::vector<std::string> t = split_string(line, ',');
+
+            // DEBUG
+            /*
+            cout << "Line: ";
+            for (const auto s : t) {
+                cout << s << ", ";
+            }
+            cout << endl;
+            */
 
             // TODO
             // hard coding position indexes for now.
@@ -106,6 +115,11 @@ main(int argc, char **argv)
     }
 
     vector< array<double, 3> > centers = read_centers(centers_path);
+
+    if (mpi_rank == 0) {
+        printf("# Found %lu centers\n", centers.size());
+    }
+
 
     //
     // Read field values.
@@ -175,18 +189,18 @@ main(int argc, char **argv)
     double *bin_fr_sums = new double[num_bins];
 
     // iterate over groups
-    for (size_t i = 0; i < centers.size(); ++i) {
+    for (size_t i_cent = 0; i_cent < centers.size(); ++i_cent) {
         // reset local stuff
-        for (int j = 0; j < num_bins; ++j) {
+        for (int i = 0; i < num_bins; ++i) {
             bin_counts_local[i] = 0;
             bin_f_sums_local[i] = 0.0;
             bin_fr_sums_local[i] = 0.0;
         }
 
         // get pc position
-        double cx = centers[i][0];
-        double cy = centers[i][1];
-        double cz = centers[i][2];
+        double cx = centers[i_cent][0];
+        double cy = centers[i_cent][1];
+        double cz = centers[i_cent][2];
 
         long ix0 = floor( (cx - r_max) / grid_dx );
         long ix1 = ceil( (cx + r_max) / grid_dx );
@@ -194,6 +208,11 @@ main(int argc, char **argv)
         long iy1 = ceil( (cy + r_max) / grid_dx );
         long iz0 = floor( (cz - r_max) / grid_dx );
         long iz1 = ceil( (cz + r_max) / grid_dx );
+
+        if (mpi_rank == 0) {
+            printf("Binning center %f %f %f, index range %li %li, %li %li, %li %li\n",
+                cx, cy, cz, ix0, ix1, iy0, iy1, iz0, iz1);
+        }
 
         // iterate over points.
         for (long ix = ix0; ix <= ix1; ++ix) {
@@ -228,18 +247,13 @@ main(int argc, char **argv)
                         double drz = z - cz;
                         double r = sqrt(drxy2 + drz * drz);
                         int ibin = r / bin_dr;
-                        long i = (ix_local * n + iyw) * n + izw;
 
                         if (ibin < num_bins) {
-                            // DEBUG
-                            //printf("[bin] rank %i i %li %li %li ix %li %li %li ir %i fi %li %li\n",
-                            //    mpi_rank, ix, iy, iz,
-                            //    local_ix0, ix_local, local_ix1,
-                            //    ibin, i, np_local);
                             // got a bin point
+                            long ii = (ix_local * n + iyw) * n + izw;
                             bin_counts_local[ibin] += 1;
-                            bin_f_sums_local[ibin] += f[i];
-                            bin_fr_sums_local[ibin] += f[i] * r;
+                            bin_f_sums_local[ibin] += f[ii];
+                            bin_fr_sums_local[ibin] += f[ii] * r;
                         }
                     }
                 }
@@ -255,7 +269,7 @@ main(int argc, char **argv)
         // make sure file is empty
         if (mpi_rank == 0) {
             char output_path[1000];
-            sprintf(output_path, "%sprof_%03d.txt", pre_path.c_str(), (int)i);
+            sprintf(output_path, "%sprof_%06d.txt", pre_path.c_str(), (int)i_cent);
             FILE *outfile = fopen(output_path, "w");
             for (int i = 0; i < num_bins; ++i) {
                 if (bin_counts[i] > 0) {
