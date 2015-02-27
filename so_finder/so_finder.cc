@@ -27,38 +27,39 @@ const int nn = n * n * n;
 const double l = 256.0;
 const double dx = l / n;
 
-bool
-comp_void_radii_desc(const Void &a, const Void &b)
+inline bool
+compare_by_mode(const bool comp_lt, const double value, const double ref)
+{
+    if (comp_lt) { return value < ref; }
+    return value >= ref;
+}
+
+inline bool
+void_radii_ge(const Void &a, const Void &b)
 {
     return a.radius >= b.radius;
 }
 
-int
-main(int argc, char **argv)
+inline bool
+void_value_lt(const Void &a, const Void &b)
 {
-    if (argc != 4) {
-        puts("[ERROR] bad number of args.");
-        exit(1);
-    }
+    return a.center.value < b.center.value;
+}
 
-    const string grid_path = argv[1];
-    const double thresh_value = atof(argv[2]);
-    const string output_path = argv[3];
+inline bool
+void_value_ge(const Void &a, const Void &b)
+{
+    return a.center.value >= b.center.value;
+}
 
-    // so we can test modifying this later.
-    const double avg_target_value = 2.0 * thresh_value;
-
-    puts("Reading");
-
-    // read the grid data
-    double *field = new double[nn];
-    FILE *f = fopen(grid_path.c_str(), "r");
-    fread(&field[0], sizeof(double), nn, f);
-    fclose(f);
-
+std::vector<Void>
+find_sos(const double * const field, const bool thresh_mode_lt,
+    const double thresh_value, const double avg_target,
+    const bool overlap_mode_radius)
+{
     puts("Thresholding");
 
-    vector<Point> under_thresh_points;
+    vector<Point> thresh_points;
 
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
@@ -66,9 +67,9 @@ main(int argc, char **argv)
                 // grab this value
                 double fi = grid_value(n, field, i, j, k);
 
-                if (fi < thresh_value) {
+                if ( compare_by_mode(thresh_mode_lt, fi, thresh_value) ) {
                     Point p = {dx * (i + 0.5), dx * (j + 0.5), dx * (k + 0.5), fi};
-                    under_thresh_points.push_back(p);
+                    thresh_points.push_back(p);
                 }
             }
         }
@@ -76,7 +77,7 @@ main(int argc, char **argv)
 
     puts("Finding radii");
 
-    const int num_points = under_thresh_points.size();
+    const int num_points = thresh_points.size();
     vector<Void> candidates;
 
     // now for each point, we grow a spherical region until the average gets
@@ -85,23 +86,30 @@ main(int argc, char **argv)
         if (i % 10000 == 0) { printf("progress %f\n", (double)i/num_points); }
 
         // grab center
-        Point c = under_thresh_points[i];
+        Point c = thresh_points[i];
 
         // just to be careful about noise -- test r = 1.1, 1.5, 2.0
         // start at 2.0 Mpc/h
         double avg;
         avg = grid_spherical_average(l, n, field, c.x, c.y, c.z, 1.01);
-        if (avg >= avg_target_value) { continue; }
+        if ( !compare_by_mode(thresh_mode_lt, avg, avg_target) ) { continue; }
         avg = grid_spherical_average(l, n, field, c.x, c.y, c.z, 1.5);
-        if (avg >= avg_target_value) { continue; }
+        if ( !compare_by_mode(thresh_mode_lt, avg, avg_target) ) { continue; }
         avg = grid_spherical_average(l, n, field, c.x, c.y, c.z, 2.01);
-        if (avg >= avg_target_value) { continue; }
+        if ( !compare_by_mode(thresh_mode_lt, avg, avg_target) ) { continue; }
 
         double r = 2.0;
-        double delta_r = 0.1;
-        while (avg < avg_target_value) {
+        const double delta_r = 0.1;
+        const double r_max = 30.0;
+
+        while ( compare_by_mode(thresh_mode_lt, avg, avg_target) ) {
             // update radius
             r += delta_r;
+            // check for crazy scales...
+            if (r > r_max) {
+                puts("[ERROR] Exceeded r_max. Use more restrictive values for threshold and average target.");
+                exit(1);
+            }
             // compute new avg.
             avg = grid_spherical_average(l, n, field, c.x, c.y, c.z, r);
         }
@@ -111,7 +119,18 @@ main(int argc, char **argv)
     }
 
     // sort cands by radius
-    std::sort(candidates.begin(), candidates.end(), comp_void_radii_desc);
+    puts("Sorting candidates");
+    if (overlap_mode_radius) {
+        std::sort(candidates.begin(), candidates.end(), void_radii_ge);
+    }
+    else {
+        if (thresh_mode_lt) {
+            std::sort(candidates.begin(), candidates.end(), void_value_lt);
+        }
+        else {
+            std::sort(candidates.begin(), candidates.end(), void_value_ge);
+        }
+    }
 
     const int num_candidates = candidates.size();
     printf("Found %i large voids\n", num_candidates);
@@ -123,6 +142,8 @@ main(int argc, char **argv)
 
     // dumb n^2 loop is fine for this many elements.
     for (int i = 0; i < num_candidates; ++i) {
+        if (i % 100000 == 0) { printf("progress %f\n", (double)i/num_candidates); }
+
         // have we already handled this one?
         if (processed_indexes[i]) { continue; }
         // grab this void and mark it as processed
@@ -132,7 +153,7 @@ main(int argc, char **argv)
         // use the i'th min as default values.
         Void v = vi;
 
-        for (int j = 0; j < num_candidates; ++j) {
+        for (int j = i+1; j < num_candidates; ++j) {
             // have we already handled this one?
             if (processed_indexes[j]) { continue; }
             Void vj = candidates[j];
@@ -142,19 +163,18 @@ main(int argc, char **argv)
             bool overlap = delta_center < vi.radius + vj.radius;
 
             if (overlap) {
-                // DEBUG
-                if (vj.radius > 11.0) {
-                    printf("%i %f %f %f %f - %i %f %f %f %f, dist %f\n",
-                        i, vi.center.x, vi.center.y, vi.center.z, vi.radius,
-                        j, vj.center.x, vj.center.y, vj.center.z, vj.radius,
-                        delta_center);
-                }
-
                 // first mark this one as processed
                 processed_indexes[j] = true;
                 // now figure out which one to save.
-                if (vj.radius > v.radius) {
-                    v = vj;
+                if (overlap_mode_radius) {
+                    if (vj.radius > v.radius) {
+                        v = vj;
+                    }
+                }
+                else {
+                    if ( compare_by_mode(thresh_mode_lt, vj.center.value, v.center.value) ) {
+                        v = vj;
+                    }
                 }
             }
         }
@@ -163,6 +183,36 @@ main(int argc, char **argv)
     }
 
     printf("Pruned down to %lu voids\n", voids.size());
+
+    return voids;
+}
+
+int
+main(int argc, char **argv)
+{
+    if (argc != 7) {
+        puts("[ERROR] bad number of args.");
+        exit(1);
+    }
+
+    const string grid_path = argv[1];
+    const bool thresh_mode_lt = atoi(argv[2]);
+    const double thresh_value = atof(argv[3]);
+    const double avg_target = atof(argv[4]);
+    const bool overlap_mode_radius = atoi(argv[5]);
+    const string output_path = argv[6];
+
+    puts("Reading");
+
+    // read the grid data
+    double *field = new double[nn];
+    FILE *f = fopen(grid_path.c_str(), "r");
+    fread(&field[0], sizeof(double), nn, f);
+    fclose(f);
+
+    vector<Void> voids = find_sos(field, thresh_mode_lt, thresh_value,
+        avg_target, overlap_mode_radius);
+
     puts("Writing output.");
 
     // write out the final voids.
@@ -173,6 +223,8 @@ main(int argc, char **argv)
             v.center.x, v.center.y, v.center.z, v.center.value, v.radius);
     }
     fclose(output_file);
+
+    delete [] field;
 
     return 0;
 }

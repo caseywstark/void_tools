@@ -73,8 +73,8 @@ grid_spherical_average(const double l, const int n, const double * const field,
 {
     const double dx = l / n;
 
-    double f_sum = 0.0;
-    int f_count = 0;
+    double fw_sum = 0.0;
+    double w_sum = 0.0;
 
     for (int i = floor(cx - r); i < ceil(cx + r); ++i) {
         int iw = periodic_index(i, n);
@@ -87,14 +87,18 @@ grid_spherical_average(const double l, const int n, const double * const field,
                 double z = dx * (k + 0.5);
 
                 double ri = periodic_distance(cx, cy, cz, x, y, z, l);
+                // crappy approx to the fraction of the cell covered
+                // by the sphere
+                double dr = (r - ri) / dx - 0.5;
+                int intersect = dr > 0.0;
+                double wi = fmin(1.0, intersect * dr);
 
-                if (ri < r) {
-                    f_sum += grid_value(n, field, iw, jw, kw);
-                    f_count += 1;
-                }
+                double fi = grid_value(n, field, iw, jw, kw);
+                fw_sum += fi * wi;
+                w_sum += wi;
             }
         }
     }
 
-    return f_sum / f_count;
+    return fw_sum / w_sum;
 }
