@@ -14,8 +14,11 @@ using namespace std;
 
 #include <mpi.h>
 
+// simulation constants
+const double l = 256.0;
 const long n = 2560;
 const long np = n*n*n;
+const double dx = l / n;
 
 std::vector<std::string>
 split_string(const std::string str, const char split_char)
@@ -53,22 +56,13 @@ read_centers(const std::string path)
         while (std::getline(centers_file, line)) {
             std::vector<std::string> t = split_string(line, ',');
 
-            // DEBUG
-            /*
-            cout << "Line: ";
-            for (const auto s : t) {
-                cout << s << ", ";
-            }
-            cout << endl;
-            */
-
             // TODO
             // hard coding position indexes for now.
-            std::array<double, 3> c = {stod(t[12]), stod(t[13]), stod(t[14])};
+            std::array<double, 3> c = {stod(t[0]), stod(t[1]), stod(t[2])};
             // DEBUG
             // just to be safe...
-            if (c[0] < 0.0 || c[0] >= 1.0 || c[1] < 0.0 || c[1] >= 1.0
-                || c[2] < 0.0 || c[2] >= 1.0) {
+            if (c[0] < 0.0 || c[0] >= l || c[1] < 0.0 || c[1] >= l
+                || c[2] < 0.0 || c[2] >= l) {
                 std::cerr << "bad position: " << c[0] << " " << c[1] << " " << c[2] << std::endl;
                 exit(1);
             }
@@ -174,10 +168,8 @@ main(int argc, char **argv)
 
     if (mpi_rank == 0) { puts("# Finding local halos."); }
 
-    const double grid_dx = 1.0 / n;
-
     // 10 Mpc/h in 256 Mpc/h
-    const double r_max = 20.0 / 256.0;
+    const double r_max = 20.0;
     const int num_bins = 100;
     const double bin_dr = r_max / num_bins;
 
@@ -202,17 +194,12 @@ main(int argc, char **argv)
         double cy = centers[i_cent][1];
         double cz = centers[i_cent][2];
 
-        long ix0 = floor( (cx - r_max) / grid_dx );
-        long ix1 = ceil( (cx + r_max) / grid_dx );
-        long iy0 = floor( (cy - r_max) / grid_dx );
-        long iy1 = ceil( (cy + r_max) / grid_dx );
-        long iz0 = floor( (cz - r_max) / grid_dx );
-        long iz1 = ceil( (cz + r_max) / grid_dx );
-
-        if (mpi_rank == 0) {
-            printf("Binning center %f %f %f, index range %li %li, %li %li, %li %li\n",
-                cx, cy, cz, ix0, ix1, iy0, iy1, iz0, iz1);
-        }
+        long ix0 = floor( (cx - r_max) / dx );
+        long ix1 = ceil( (cx + r_max) / dx );
+        long iy0 = floor( (cy - r_max) / dx );
+        long iy1 = ceil( (cy + r_max) / dx );
+        long iz0 = floor( (cz - r_max) / dx );
+        long iz1 = ceil( (cz + r_max) / dx );
 
         // iterate over points.
         for (long ix = ix0; ix <= ix1; ++ix) {
@@ -225,7 +212,7 @@ main(int argc, char **argv)
 
             // check if this is even local before continuing.
             if (ix_local >= 0 && ix_local < n_local) {
-                double x = grid_dx * (ix + 0.5);
+                double x = dx * (ix + 0.5);
                 double drx = x - cx;
                 double drx2 = drx * drx;
 
@@ -234,7 +221,7 @@ main(int argc, char **argv)
                     if (iyw < 0) { iyw += n; }
                     if (iyw >= n) { iyw -= n; }
 
-                    double y = grid_dx * (iy + 0.5);
+                    double y = dx * (iy + 0.5);
                     double dry = y - cy;
                     double drxy2 = drx2 + dry * dry;
 
@@ -243,7 +230,7 @@ main(int argc, char **argv)
                         if (izw < 0) { izw += n; }
                         if (izw >= n) { izw -= n; }
 
-                        double z = grid_dx * (iz + 0.5);
+                        double z = dx * (iz + 0.5);
                         double drz = z - cz;
                         double r = sqrt(drxy2 + drz * drz);
                         int ibin = r / bin_dr;
@@ -269,16 +256,17 @@ main(int argc, char **argv)
         // make sure file is empty
         if (mpi_rank == 0) {
             char output_path[1000];
-            sprintf(output_path, "%sprof_%06d.txt", pre_path.c_str(), (int)i_cent);
+            sprintf(output_path, "%sprofile_%06d.txt", pre_path.c_str(), (int)i_cent);
             FILE *outfile = fopen(output_path, "w");
+            fprintf(outfile, "radius,field_value\n");
             for (int i = 0; i < num_bins; ++i) {
                 if (bin_counts[i] > 0) {
-                    fprintf(outfile, "%e %e\n",
+                    fprintf(outfile, "%e,%e\n",
                         bin_fr_sums[i] / bin_f_sums[i],
                         bin_f_sums[i] / bin_counts[i]);
                 }
                 else {
-                    fprintf(outfile, "0.0 0.0\n");
+                    fprintf(outfile, "0.0,0.0\n");
                 }
             }
             fclose(outfile);
