@@ -177,8 +177,8 @@ main(int argc, char **argv)
     long *bin_counts = new long[num_bins];
     double *bin_f_sums_local = new double[num_bins];
     double *bin_f_sums = new double[num_bins];
-    double *bin_fr_sums_local = new double[num_bins];
-    double *bin_fr_sums = new double[num_bins];
+    double *bin_r_sums_local = new double[num_bins];
+    double *bin_r_sums = new double[num_bins];
 
     // iterate over groups
     for (size_t i_cent = 0; i_cent < centers.size(); ++i_cent) {
@@ -186,7 +186,7 @@ main(int argc, char **argv)
         for (int i = 0; i < num_bins; ++i) {
             bin_counts_local[i] = 0;
             bin_f_sums_local[i] = 0.0;
-            bin_fr_sums_local[i] = 0.0;
+            bin_r_sums_local[i] = 0.0;
         }
 
         // get pc position
@@ -240,7 +240,7 @@ main(int argc, char **argv)
                             long ii = (ix_local * n + iyw) * n + izw;
                             bin_counts_local[ibin] += 1;
                             bin_f_sums_local[ibin] += f[ii];
-                            bin_fr_sums_local[ibin] += f[ii] * r;
+                            bin_r_sums_local[ibin] += r;
                         }
                     }
                 }
@@ -250,7 +250,7 @@ main(int argc, char **argv)
         // done with binning for this PC.
         MPI_Allreduce(bin_counts_local, bin_counts, num_bins, MPI_LONG, MPI_SUM, comm);
         MPI_Allreduce(bin_f_sums_local, bin_f_sums, num_bins, MPI_DOUBLE, MPI_SUM, comm);
-        MPI_Allreduce(bin_fr_sums_local, bin_fr_sums, num_bins, MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(bin_r_sums_local, bin_r_sums, num_bins, MPI_DOUBLE, MPI_SUM, comm);
 
         // write this pc.
         // make sure file is empty
@@ -262,7 +262,7 @@ main(int argc, char **argv)
             for (int i = 0; i < num_bins; ++i) {
                 if (bin_counts[i] > 0) {
                     fprintf(outfile, "%e,%e\n",
-                        bin_fr_sums[i] / bin_f_sums[i],
+                        bin_r_sums[i] / bin_counts[i],
                         bin_f_sums[i] / bin_counts[i]);
                 }
                 else {
