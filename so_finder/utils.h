@@ -89,7 +89,7 @@ grid_spherical_average(const double l, const int n, const double * const field,
                 double ri = periodic_distance(cx, cy, cz, x, y, z, l);
                 // crappy approx to the fraction of the cell covered
                 // by the sphere
-                double dr = (r - ri) / dx - 0.5;
+                double dr = (r - ri) / dx + 0.5;
                 int intersect = dr > 0.0;
                 double wi = fmin(1.0, intersect * dr);
 
