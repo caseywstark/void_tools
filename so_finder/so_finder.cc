@@ -4,8 +4,8 @@ Simple void finder.
 2015, Casey W. Stark.
 
 - read grid data
-- find points below threshold
-- grow spheres until they hit the threshold
+- find points above/below threshold
+- grow spheres until they hit the target average.
 - remove overlapping voids
 
 */
@@ -35,9 +35,9 @@ compare_by_mode(const bool comp_lt, const double value, const double ref)
 }
 
 inline bool
-void_radii_ge(const Void &a, const Void &b)
+void_radius_ge(const Void &a, const Void &b)
 {
-    return a.radius >= b.radius;
+    return b.radius < a.radius;
 }
 
 inline bool
@@ -46,14 +46,8 @@ void_value_lt(const Void &a, const Void &b)
     return a.center.value < b.center.value;
 }
 
-inline bool
-void_value_ge(const Void &a, const Void &b)
-{
-    return a.center.value >= b.center.value;
-}
-
 std::vector<Void>
-find_sos(const double * const field, const bool thresh_mode_lt,
+find_sos(const double * const field,
     const double thresh_value, const double avg_target,
     const bool overlap_mode_radius)
 {
@@ -67,7 +61,7 @@ find_sos(const double * const field, const bool thresh_mode_lt,
                 // grab this value
                 double fi = grid_value(n, field, i, j, k);
 
-                if ( compare_by_mode(thresh_mode_lt, fi, thresh_value) ) {
+                if (fi < thresh_value) {
                     Point p = {dx * (i + 0.5), dx * (j + 0.5), dx * (k + 0.5), fi};
                     thresh_points.push_back(p);
                 }
@@ -75,9 +69,9 @@ find_sos(const double * const field, const bool thresh_mode_lt,
         }
     }
 
-    puts("Finding radii");
-
     const int num_points = thresh_points.size();
+    printf("Finding radii of %i points.\n", num_points);
+
     vector<Void> candidates;
 
     // now for each point, we grow a spherical region until the average gets
@@ -92,17 +86,17 @@ find_sos(const double * const field, const bool thresh_mode_lt,
         // start at 2.0 Mpc/h
         double avg;
         avg = grid_spherical_average(l, n, field, c.x, c.y, c.z, 1.01);
-        if ( !compare_by_mode(thresh_mode_lt, avg, avg_target) ) { continue; }
+        if (avg >= avg_target) { continue; }
         avg = grid_spherical_average(l, n, field, c.x, c.y, c.z, 1.5);
-        if ( !compare_by_mode(thresh_mode_lt, avg, avg_target) ) { continue; }
+        if (avg >= avg_target) { continue; }
         avg = grid_spherical_average(l, n, field, c.x, c.y, c.z, 2.01);
-        if ( !compare_by_mode(thresh_mode_lt, avg, avg_target) ) { continue; }
+        if (avg >= avg_target) { continue; }
 
         double r = 2.0;
-        const double delta_r = 0.1;
-        const double r_max = 30.0;
+        const double delta_r = 0.05;
+        const double r_max = 50.0;
 
-        while ( compare_by_mode(thresh_mode_lt, avg, avg_target) ) {
+        while (avg < avg_target) {
             // update radius
             r += delta_r;
             // check for crazy scales...
@@ -119,21 +113,16 @@ find_sos(const double * const field, const bool thresh_mode_lt,
     }
 
     // sort cands by radius
-    puts("Sorting candidates");
+    const int num_candidates = candidates.size();
+    printf("Sorting %i candidates\n", num_candidates);
+
     if (overlap_mode_radius) {
-        std::sort(candidates.begin(), candidates.end(), void_radii_ge);
+        std::sort(candidates.begin(), candidates.end(), void_radius_ge);
     }
     else {
-        if (thresh_mode_lt) {
-            std::sort(candidates.begin(), candidates.end(), void_value_lt);
-        }
-        else {
-            std::sort(candidates.begin(), candidates.end(), void_value_ge);
-        }
+        std::sort(candidates.begin(), candidates.end(), void_value_lt);
     }
 
-    const int num_candidates = candidates.size();
-    printf("Found %i large voids\n", num_candidates);
     puts("Removing overlaps");
 
     // remove overlapping regions
@@ -142,18 +131,17 @@ find_sos(const double * const field, const bool thresh_mode_lt,
 
     // dumb n^2 loop is fine for this many elements.
     for (int i = 0; i < num_candidates; ++i) {
-        if (i % 100000 == 0) { printf("progress %f\n", (double)i/num_candidates); }
+        if (i % 10000 == 0) { printf("progress %f\n", (double)i/num_candidates); }
 
         // have we already handled this one?
         if (processed_indexes[i]) { continue; }
         // grab this void and mark it as processed
         Void vi = candidates[i];
         processed_indexes[i] = true;
-        // if we haven't processed this one, we must be adding a final void
-        // use the i'th min as default values.
+        // the void to save, use vi as default values.
         Void v = vi;
 
-        for (int j = i+1; j < num_candidates; ++j) {
+        for (int j = i + 1; j < num_candidates; ++j) {
             // have we already handled this one?
             if (processed_indexes[j]) { continue; }
             Void vj = candidates[j];
@@ -167,12 +155,17 @@ find_sos(const double * const field, const bool thresh_mode_lt,
                 processed_indexes[j] = true;
                 // now figure out which one to save.
                 if (overlap_mode_radius) {
-                    if (vj.radius > v.radius) {
+                    // replace if larger, or in the case of a tie, has a smaller center val.
+                    if (vj.radius > v.radius
+                        || (vj.radius == v.radius
+                            && vj.center.value < v.center.value) ) {
                         v = vj;
                     }
                 }
                 else {
-                    if ( compare_by_mode(thresh_mode_lt, vj.center.value, v.center.value) ) {
+                    if (vj.center.value < v.center.value
+                        || (vj.center.value == v.center.value
+                            && vj.radius > v.radius)) {
                         v = vj;
                     }
                 }
@@ -196,9 +189,9 @@ main(int argc, char **argv)
     }
 
     const string grid_path = argv[1];
-    const bool thresh_mode_lt = atoi(argv[2]);
-    const double thresh_value = atof(argv[3]);
-    const double avg_target = atof(argv[4]);
+    const bool thresh_mode_ge = atoi(argv[2]);
+    const double in_threshold = atof(argv[3]);
+    const double in_avg_target = atof(argv[4]);
     const bool overlap_mode_radius = atoi(argv[5]);
     const string output_path = argv[6];
 
@@ -210,8 +203,23 @@ main(int argc, char **argv)
     fread(&field[0], sizeof(double), nn, f);
     fclose(f);
 
-    vector<Void> voids = find_sos(field, thresh_mode_lt, thresh_value,
-        avg_target, overlap_mode_radius);
+    // check if we need to change for the threshold direction
+    double threshold = in_threshold;
+    double avg_target = in_avg_target;
+    if (thresh_mode_ge) {
+        for (int i = 0; i < nn; ++i) { field[i] *= -1.0; }
+        threshold *= -1.0;
+        avg_target *= -1.0;
+    }
+
+    vector<Void> voids = find_sos(field, threshold, avg_target, overlap_mode_radius);
+
+    // check if we need to fix void values.
+    if (thresh_mode_ge) {
+        for (auto &v : voids) {
+            v.center.value *= -1.0;
+        }
+    }
 
     puts("Writing output.");
 
