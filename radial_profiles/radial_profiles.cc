@@ -175,18 +175,18 @@ main(int argc, char **argv)
 
     long *bin_counts_local = new long[num_bins];
     long *bin_counts = new long[num_bins];
-    double *bin_f_sums_local = new double[num_bins];
-    double *bin_f_sums = new double[num_bins];
     double *bin_r_sums_local = new double[num_bins];
     double *bin_r_sums = new double[num_bins];
+    double *bin_f_sums_local = new double[num_bins];
+    double *bin_f_sums = new double[num_bins];
 
     // iterate over groups
     for (size_t i_cent = 0; i_cent < centers.size(); ++i_cent) {
         // reset local stuff
         for (int i = 0; i < num_bins; ++i) {
             bin_counts_local[i] = 0;
-            bin_f_sums_local[i] = 0.0;
             bin_r_sums_local[i] = 0.0;
+            bin_f_sums_local[i] = 0.0;
         }
 
         // get pc position
@@ -213,8 +213,8 @@ main(int argc, char **argv)
             // check if this is even local before continuing.
             if (ix_local >= 0 && ix_local < n_local) {
                 double x = dx * (ix + 0.5);
-                double drx = x - cx;
-                double drx2 = drx * drx;
+                double rx = x - cx;
+                double rx2 = rx * rx;
 
                 for (long iy = iy0; iy <= iy1; ++iy) {
                     long iyw = iy;
@@ -222,8 +222,8 @@ main(int argc, char **argv)
                     if (iyw >= n) { iyw -= n; }
 
                     double y = dx * (iy + 0.5);
-                    double dry = y - cy;
-                    double drxy2 = drx2 + dry * dry;
+                    double ry = y - cy;
+                    double ry2 = ry * ry;
 
                     for (long iz = iz0; iz <= iz1; ++iz) {
                         long izw = iz;
@@ -231,29 +231,32 @@ main(int argc, char **argv)
                         if (izw >= n) { izw -= n; }
 
                         double z = dx * (iz + 0.5);
-                        double drz = z - cz;
-                        double r = sqrt(drxy2 + drz * drz);
+                        double rz = z - cz;
+                        double rz2 = rz * rz;
+
+                        double r = sqrt(rx2 + ry2 + rz2);
                         int ibin = r / bin_dr;
 
                         if (ibin < num_bins) {
                             // got a bin point
                             long ii = (ix_local * n + iyw) * n + izw;
+                            double fi = f[ii];
+                            // accumulate.
                             bin_counts_local[ibin] += 1;
-                            bin_f_sums_local[ibin] += f[ii];
                             bin_r_sums_local[ibin] += r;
+                            bin_f_sums_local[ibin] += fi;
                         }
                     }
                 }
             }
         }
 
-        // done with binning for this PC.
+        // combine local results
         MPI_Allreduce(bin_counts_local, bin_counts, num_bins, MPI_LONG, MPI_SUM, comm);
-        MPI_Allreduce(bin_f_sums_local, bin_f_sums, num_bins, MPI_DOUBLE, MPI_SUM, comm);
         MPI_Allreduce(bin_r_sums_local, bin_r_sums, num_bins, MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(bin_f_sums_local, bin_f_sums, num_bins, MPI_DOUBLE, MPI_SUM, comm);
 
-        // write this pc.
-        // make sure file is empty
+        // write this profile
         if (mpi_rank == 0) {
             char output_path[1000];
             sprintf(output_path, "%sprofile_%06d.txt", pre_path.c_str(), (int)i_cent);
