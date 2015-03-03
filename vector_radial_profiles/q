@@ -1,0 +1,12 @@
+#PBS -N fr_profiles
+#PBS -q debug
+#PBS -l mppwidth=160
+#PBS -l walltime=0:30:00
+#PBS -l gres=gscratch
+#PBS -j eo
+#PBS -m abe
+#PBS -V
+
+cd $PBS_O_WORKDIR
+aprun -n 160 ./vector_radial_profiles.exe catalog.csv v_x.bin v_y.bin v_z.bin vr/vr_
+
